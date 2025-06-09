@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, RotateCcw, ZoomIn, ZoomOut, Move3d, Smartphone, Monitor } from 'lucide-react';
+import { X, RotateCcw, ZoomIn, ZoomOut, Move3d, Smartphone, Monitor, AlertCircle, CheckCircle } from 'lucide-react';
 import { CustomARScene } from './CustomARScene';
+import { WebXRARViewer } from './WebXRARViewer';
 import { useStore } from '../store/useStore';
 
 interface ARViewerProps {
@@ -13,50 +14,70 @@ interface ARViewerProps {
 }
 
 export function ARViewer({ isOpen, onClose, productName, model3D, arType }: ARViewerProps) {
-  const modelViewerRef = useRef<any>(null);
-  const [viewMode, setViewMode] = useState<'model-viewer' | 'custom'>('custom');
+  const [viewMode, setViewMode] = useState<'webxr' | 'custom'>('webxr');
   const [selectedColor, setSelectedColor] = useState('#ffffff');
+  const [arSupported, setArSupported] = useState<boolean | null>(null);
+  const [arError, setArError] = useState<string | null>(null);
   const { updateShopCoins, addAnalyticsEvent } = useStore();
 
   useEffect(() => {
     if (isOpen) {
-      // Track AR viewer open
+      checkARSupport();
       addAnalyticsEvent('ar_viewer_opened', {
         product: productName,
         arType,
         timestamp: Date.now()
       });
-
-      // Reward coins for AR engagement
       updateShopCoins(10, `Viewed ${productName} in AR`);
-
-      if (modelViewerRef.current && viewMode === 'model-viewer') {
-        const modelViewer = modelViewerRef.current;
-        modelViewer.setAttribute('ar', '');
-        modelViewer.setAttribute('ar-modes', 'webxr scene-viewer quick-look');
-      }
     }
-  }, [isOpen, viewMode, productName, arType]);
+  }, [isOpen, productName, arType]);
+
+  const checkARSupport = async () => {
+    try {
+      if (!('xr' in navigator)) {
+        setArSupported(false);
+        setArError('WebXR not supported on this device');
+        return;
+      }
+
+      const xr = (navigator as any).xr;
+      if (!xr) {
+        setArSupported(false);
+        setArError('WebXR API not available');
+        return;
+      }
+
+      const supported = await xr.isSessionSupported('immersive-ar');
+      setArSupported(supported);
+      
+      if (!supported) {
+        setArError('AR mode not supported on this device. Try on a mobile device with ARCore/ARKit support.');
+      }
+    } catch (error) {
+      console.error('AR support check failed:', error);
+      setArSupported(false);
+      setArError('Failed to check AR support');
+    }
+  };
 
   const getARInstructions = () => {
     switch (arType) {
       case 'furniture':
-        return 'Place this furniture in your room using AR to see how it fits your space';
+        return 'Point your camera at the floor and tap to place furniture in your room';
       case 'electronics':
-        return 'View this device in 360° and experience it in your environment';
+        return 'Find a flat surface like a table and tap to place the device';
       case 'apparel':
-        return 'Try on this item virtually and see different color options';
+        return 'Use AR to see how this item looks in different environments';
       default:
-        return 'Experience this product in augmented reality';
+        return 'Point your camera around and tap to place the product in your space';
     }
   };
 
   const getModelUrl = () => {
-    // Real GLTF models for different product types
     const modelUrls = {
-      furniture: 'https://threejs.org/examples/models/gltf/DamagedHelmet/DamagedHelmet.gltf',
-      electronics: 'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
-      apparel: 'https://threejs.org/examples/models/gltf/Soldier.glb'
+      furniture: 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Duck/glTF-Binary/Duck.glb',
+      electronics: 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/Avocado/glTF-Binary/Avocado.glb',
+      apparel: 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/BoomBox/glTF-Binary/BoomBox.glb'
     };
     
     return model3D || modelUrls[arType] || modelUrls.furniture;
@@ -69,18 +90,16 @@ export function ARViewer({ isOpen, onClose, productName, model3D, arType }: ARVi
       color,
       timestamp: Date.now()
     });
-    
-    // Reward coins for customization
     updateShopCoins(5, `Customized ${productName} color`);
   };
 
   const handleAnalyticsEvent = (event: string, data: any) => {
     addAnalyticsEvent(event, data);
     
-    // Reward coins for various interactions
     const coinRewards = {
       'model_interaction': 2,
-      'ar_session': 20,
+      'ar_session_started': 25,
+      'ar_placement': 15,
       'customization': 5,
       'control': 1
     };
@@ -94,7 +113,6 @@ export function ARViewer({ isOpen, onClose, productName, model3D, arType }: ARVi
   const handleClose = () => {
     addAnalyticsEvent('ar_viewer_closed', {
       product: productName,
-      sessionDuration: Date.now() - (Date.now() - 30000), // Approximate
       timestamp: Date.now()
     });
     onClose();
@@ -129,8 +147,41 @@ export function ARViewer({ isOpen, onClose, productName, model3D, arType }: ARVi
                   </p>
                 </div>
                 
+                {/* AR Support Status */}
+                <div className="flex items-center space-x-2">
+                  {arSupported === null ? (
+                    <div className="flex items-center space-x-2 text-gray-500">
+                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-sm">Checking AR support...</span>
+                    </div>
+                  ) : arSupported ? (
+                    <div className="flex items-center space-x-2 text-green-600">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="text-sm font-medium">AR Ready</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2 text-red-600">
+                      <AlertCircle className="w-5 h-5" />
+                      <span className="text-sm font-medium">AR Not Available</span>
+                    </div>
+                  )}
+                </div>
+                
                 {/* View Mode Toggle */}
                 <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                  <motion.button
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      viewMode === 'webxr'
+                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}
+                    onClick={() => setViewMode('webxr')}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    <span>Real AR</span>
+                  </motion.button>
                   <motion.button
                     className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                       viewMode === 'custom'
@@ -141,21 +192,8 @@ export function ARViewer({ isOpen, onClose, productName, model3D, arType }: ARVi
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >
-                    <Smartphone className="w-4 h-4" />
-                    <span>Enhanced AR</span>
-                  </motion.button>
-                  <motion.button
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      viewMode === 'model-viewer'
-                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                        : 'text-gray-600 dark:text-gray-400'
-                    }`}
-                    onClick={() => setViewMode('model-viewer')}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
                     <Monitor className="w-4 h-4" />
-                    <span>Standard View</span>
+                    <span>3D Preview</span>
                   </motion.button>
                 </div>
               </div>
@@ -168,67 +206,38 @@ export function ARViewer({ isOpen, onClose, productName, model3D, arType }: ARVi
               </button>
             </div>
 
+            {/* AR Error Message */}
+            {arError && (
+              <div className="mx-6 mt-4 p-4 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  <p className="text-red-800 dark:text-red-200 text-sm font-medium">
+                    {arError}
+                  </p>
+                </div>
+                <p className="text-red-600 dark:text-red-300 text-xs mt-1">
+                  For best AR experience, use Chrome on Android or Safari on iOS 15.4+
+                </p>
+              </div>
+            )}
+
             {/* AR Viewer Content */}
             <div className="p-6">
-              {viewMode === 'custom' ? (
+              {viewMode === 'webxr' ? (
+                <WebXRARViewer
+                  modelUrl={getModelUrl()}
+                  productName={productName}
+                  arSupported={arSupported || false}
+                  onColorChange={handleColorChange}
+                  onAnalyticsEvent={handleAnalyticsEvent}
+                />
+              ) : (
                 <CustomARScene
                   modelUrl={getModelUrl()}
                   productName={productName}
                   onColorChange={handleColorChange}
                   onAnalyticsEvent={handleAnalyticsEvent}
                 />
-              ) : (
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-xl h-96 flex items-center justify-center relative overflow-hidden">
-                  <model-viewer
-                    ref={modelViewerRef}
-                    src={getModelUrl()}
-                    alt={productName}
-                    auto-rotate
-                    camera-controls
-                    ar
-                    ar-modes="webxr scene-viewer quick-look"
-                    ios-src=""
-                    style={{ width: '100%', height: '100%' }}
-                    className="rounded-xl"
-                    onLoad={() => handleAnalyticsEvent('model_loaded', { viewer: 'model-viewer' })}
-                  />
-
-                  {/* Standard Controls */}
-                  <div className="absolute bottom-4 left-4 right-4 flex justify-center space-x-2">
-                    <motion.button
-                      className="bg-white dark:bg-gray-800 p-3 rounded-full shadow-lg"
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => handleAnalyticsEvent('control', { action: 'reset' })}
-                    >
-                      <RotateCcw className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                    </motion.button>
-                    <motion.button
-                      className="bg-white dark:bg-gray-800 p-3 rounded-full shadow-lg"
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => handleAnalyticsEvent('control', { action: 'zoom_in' })}
-                    >
-                      <ZoomIn className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                    </motion.button>
-                    <motion.button
-                      className="bg-white dark:bg-gray-800 p-3 rounded-full shadow-lg"
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => handleAnalyticsEvent('control', { action: 'zoom_out' })}
-                    >
-                      <ZoomOut className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                    </motion.button>
-                    <motion.button
-                      className="bg-white dark:bg-gray-800 p-3 rounded-full shadow-lg"
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => handleAnalyticsEvent('control', { action: 'move' })}
-                    >
-                      <Move3d className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                    </motion.button>
-                  </div>
-                </div>
               )}
 
               {/* Instructions */}
@@ -237,45 +246,18 @@ export function ARViewer({ isOpen, onClose, productName, model3D, arType }: ARVi
                   {getARInstructions()}
                 </p>
                 <div className="flex items-center justify-center mt-2 space-x-4 text-sm text-blue-600 dark:text-blue-300">
-                  <span>✨ Earn coins for interactions</span>
+                  <span>📱 Point camera around</span>
+                  <span>👆 Tap to place</span>
                   <span>🎨 Customize colors</span>
-                  <span>📱 Full AR support</span>
+                  <span>💰 Earn coins</span>
                 </div>
-              </div>
-
-              {/* AR Action Buttons */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                <motion.button
-                  className="bg-gradient-to-r from-purple-500 to-blue-500 text-white py-4 px-6 rounded-lg font-semibold text-lg flex items-center justify-center space-x-2"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    handleAnalyticsEvent('ar_button_clicked', { type: 'view_in_space' });
-                    // This would trigger AR mode in a real implementation
-                  }}
-                >
-                  <Smartphone className="w-5 h-5" />
-                  <span>View in Your Space (AR)</span>
-                </motion.button>
-                
-                <motion.button
-                  className="bg-gradient-to-r from-green-500 to-teal-500 text-white py-4 px-6 rounded-lg font-semibold text-lg flex items-center justify-center space-x-2"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    handleAnalyticsEvent('share_ar_experience', { product: productName });
-                    updateShopCoins(15, 'Shared AR experience');
-                  }}
-                >
-                  <span>📤</span>
-                  <span>Share AR Experience</span>
-                </motion.button>
               </div>
 
               {/* Performance Stats */}
               <div className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
                 <p>Selected Color: <span className="font-medium" style={{ color: selectedColor }}>{selectedColor}</span></p>
-                <p>Viewer Mode: <span className="font-medium capitalize">{viewMode}</span></p>
+                <p>Viewer Mode: <span className="font-medium capitalize">{viewMode === 'webxr' ? 'Real AR' : '3D Preview'}</span></p>
+                <p>AR Support: <span className="font-medium">{arSupported ? 'Available' : 'Not Available'}</span></p>
               </div>
             </div>
           </motion.div>
