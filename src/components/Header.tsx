@@ -1,6 +1,6 @@
 import React from 'react';
 import { Search, ShoppingCart, User, Moon, Sun, Coins } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useSafeStore } from '../store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function Header() {
@@ -9,11 +9,10 @@ export function Header() {
     toggleDarkMode,
     searchQuery,
     setSearchQuery,
-    cartItems,
     getCartItemsCount,
     user,
     isAuthenticated
-  } = useStore();
+  } = useSafeStore();
 
   const cartItemsCount = getCartItemsCount();
 

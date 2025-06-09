@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useStore } from './store/useStore';
+import { useSafeStore } from './store/useStore';
 import { Header } from './components/Header';
 import { CategoryFilter } from './components/CategoryFilter';
 import { HeroBanner } from './components/HeroBanner';
@@ -30,40 +30,52 @@ function HomePage() {
 }
 
 function App() {
-  const { isDarkMode, addAnalyticsEvent } = useStore();
+  const { isDarkMode, addAnalyticsEvent } = useSafeStore();
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    try {
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch (error) {
+      console.warn('Theme toggle error:', error);
     }
   }, [isDarkMode]);
 
   useEffect(() => {
-    // Track app initialization
-    addAnalyticsEvent('app_initialized', {
-      timestamp: Date.now(),
-      userAgent: navigator.userAgent,
-      viewport: {
-        width: window.innerWidth,
-        height: window.innerHeight
-      }
-    });
-
-    // Track page visibility changes
-    const handleVisibilityChange = () => {
-      addAnalyticsEvent('page_visibility_changed', {
-        hidden: document.hidden,
-        timestamp: Date.now()
+    try {
+      // Track app initialization
+      addAnalyticsEvent('app_initialized', {
+        timestamp: Date.now(),
+        userAgent: navigator.userAgent,
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        }
       });
-    };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+      // Track page visibility changes
+      const handleVisibilityChange = () => {
+        try {
+          addAnalyticsEvent('page_visibility_changed', {
+            hidden: document.hidden,
+            timestamp: Date.now()
+          });
+        } catch (error) {
+          console.warn('Analytics event error:', error);
+        }
+      };
 
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    } catch (error) {
+      console.warn('App initialization error:', error);
+    }
   }, [addAnalyticsEvent]);
 
   return (

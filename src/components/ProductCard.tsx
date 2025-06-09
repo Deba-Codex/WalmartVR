@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Star, ShoppingCart, Eye, Smartphone, Headset as VrHeadset, Coins, Zap, Palette } from 'lucide-react';
 import { Product } from '../types';
-import { useStore } from '../store/useStore';
+import { useSafeStore } from '../store/useStore';
 import { ARViewer } from './ARViewer';
 
 interface ProductCardProps {
@@ -10,51 +10,63 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const { addToCart, updateShopCoins, addAnalyticsEvent } = useStore();
+  const { addToCart, updateShopCoins, addAnalyticsEvent } = useSafeStore();
   const [isHovered, setIsHovered] = useState(false);
   const [showCoinAnimation, setShowCoinAnimation] = useState(false);
   const [showARViewer, setShowARViewer] = useState(false);
   const [selectedColor, setSelectedColor] = useState('#ffffff');
 
   const handleAddToCart = () => {
-    addToCart(product);
-    
-    // Animate coin reward
-    setShowCoinAnimation(true);
-    setTimeout(() => setShowCoinAnimation(false), 2000);
-    
-    // Add coins for engagement
-    updateShopCoins(5, 'Added item to cart');
-    
-    // Track analytics
-    addAnalyticsEvent('add_to_cart', {
-      productId: product.id,
-      productName: product.name,
-      price: product.price,
-      category: product.category,
-      timestamp: Date.now()
-    });
+    try {
+      addToCart(product);
+      
+      // Animate coin reward
+      setShowCoinAnimation(true);
+      setTimeout(() => setShowCoinAnimation(false), 2000);
+      
+      // Add coins for engagement
+      updateShopCoins(5, 'Added item to cart');
+      
+      // Track analytics
+      addAnalyticsEvent('add_to_cart', {
+        productId: product.id,
+        productName: product.name,
+        price: product.price,
+        category: product.category,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.warn('Add to cart error:', error);
+    }
   };
 
   const handleARView = () => {
-    setShowARViewer(true);
-    addAnalyticsEvent('ar_view_initiated', {
-      productId: product.id,
-      productName: product.name,
-      arType: product.arType,
-      timestamp: Date.now()
-    });
-    updateShopCoins(10, `Viewed ${product.name} in AR`);
+    try {
+      setShowARViewer(true);
+      addAnalyticsEvent('ar_view_initiated', {
+        productId: product.id,
+        productName: product.name,
+        arType: product.arType,
+        timestamp: Date.now()
+      });
+      updateShopCoins(10, `Viewed ${product.name} in AR`);
+    } catch (error) {
+      console.warn('AR view error:', error);
+    }
   };
 
   const handleVRView = () => {
-    addAnalyticsEvent('vr_view_initiated', {
-      productId: product.id,
-      productName: product.name,
-      timestamp: Date.now()
-    });
-    updateShopCoins(15, `Viewed ${product.name} in VR`);
-    // VR implementation would go here
+    try {
+      addAnalyticsEvent('vr_view_initiated', {
+        productId: product.id,
+        productName: product.name,
+        timestamp: Date.now()
+      });
+      updateShopCoins(15, `Viewed ${product.name} in VR`);
+      // VR implementation would go here
+    } catch (error) {
+      console.warn('VR view error:', error);
+    }
   };
 
   const formatPrice = (price: number) => {

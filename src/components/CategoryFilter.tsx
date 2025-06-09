@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useStore } from '../store/useStore';
+import { useSafeStore } from '../store/useStore';
 import { categories } from '../data/mockData';
 
 export function CategoryFilter() {
-  const { selectedCategory, setSelectedCategory } = useStore();
+  const { selectedCategory, setSelectedCategory } = useSafeStore();
 
   return (
     <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
