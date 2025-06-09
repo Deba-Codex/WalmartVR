@@ -6,10 +6,11 @@ import {
   Html,
   useProgress
 } from '@react-three/drei';
-import { XR, ARButton, useXR, useHitTest, Interactive } from '@react-three/xr';
+import { XR, ARButton, useXR, Interactive } from '@react-three/xr';
 import * as THREE from 'three';
 import { motion } from 'framer-motion';
 import { Palette, RotateCcw, Smartphone, AlertTriangle } from 'lucide-react';
+import { useManualHitTest } from '../hooks/useManualHitTest';
 
 interface WebXRARViewerProps {
   modelUrl: string;
@@ -40,7 +41,7 @@ function Reticle() {
   const reticleRef = useRef<THREE.Mesh>(null);
   const { isPresenting } = useXR();
   
-  useHitTest((hitMatrix) => {
+  useManualHitTest((hitMatrix) => {
     if (reticleRef.current && isPresenting) {
       reticleRef.current.visible = true;
       reticleRef.current.matrix.fromArray(hitMatrix);
@@ -97,8 +98,8 @@ function ARModel({
     });
   }, [selectedColor, clonedScene]);
 
-  // Handle placement in AR
-  useHitTest((hitMatrix) => {
+  // Handle placement in AR using manual hit test
+  useManualHitTest((hitMatrix) => {
     if (group.current && isPresenting && !placed) {
       group.current.matrix.fromArray(hitMatrix);
       group.current.visible = true;
