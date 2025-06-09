@@ -1,11 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useStore } from '../store/useStore';
+import { useSafeStore } from '../store/useStore';
 import { ProductCard } from './ProductCard';
 import { Loader2, Package } from 'lucide-react';
 
 export function ProductGrid() {
-  const { getFilteredProducts, searchQuery, selectedCategory } = useStore();
+  const { getFilteredProducts, searchQuery, selectedCategory } = useSafeStore();
   const products = getFilteredProducts();
 
   if (products.length === 0) {

@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { BarChart3, TrendingUp, Users, Eye, Smartphone, Headset } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useSafeStore } from '../store/useStore';
 
 export function AnalyticsDashboard() {
-  const { analyticsData, getAnalyticsStats } = useStore();
+  const { analyticsData, getAnalyticsStats } = useSafeStore();
   const stats = getAnalyticsStats();
 
   const chartData = [
@@ -14,7 +14,7 @@ export function AnalyticsDashboard() {
     { name: 'Cart Additions', value: stats.cartAdditions, color: '#f59e0b' },
   ];
 
-  const maxValue = Math.max(...chartData.map(d => d.value));
+  const maxValue = Math.max(...chartData.map(d => d.value), 1); // Ensure maxValue is at least 1
 
   return (
     <motion.div
@@ -107,7 +107,7 @@ export function AnalyticsDashboard() {
             <TrendingUp className="w-8 h-8 text-yellow-500" />
             <div>
               <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                {((stats.cartAdditions / stats.totalInteractions) * 100).toFixed(1)}%
+                {stats.totalInteractions > 0 ? ((stats.cartAdditions / stats.totalInteractions) * 100).toFixed(1) : '0.0'}%
               </div>
               <div className="text-sm text-yellow-600 dark:text-yellow-400">
                 Conversion

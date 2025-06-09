@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Coins, Gift, Trophy, Zap, TrendingUp } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useSafeStore } from '../store/useStore';
 
 export function RewardsPanel() {
-  const { user, getCoinsToNextTier, rewardActivities } = useStore();
+  const { user, getCoinsToNextTier, rewardActivities } = useSafeStore();
 
   if (!user) return null;
 

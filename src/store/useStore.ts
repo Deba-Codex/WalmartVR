@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { Product, CartItem, User, RewardActivity, AnalyticsEvent } from '../types';
 import { mockProducts } from '../data/mockData';
 
@@ -55,6 +55,40 @@ interface Store {
   };
 }
 
+// Safe storage implementation for mobile
+const createSafeStorage = () => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return createJSONStorage(() => localStorage);
+    }
+  } catch (error) {
+    console.warn('localStorage not available, using memory storage');
+  }
+  
+  // Fallback to memory storage
+  let memoryStorage: Record<string, string> = {};
+  return createJSONStorage(() => ({
+    getItem: (key: string) => memoryStorage[key] || null,
+    setItem: (key: string, value: string) => {
+      memoryStorage[key] = value;
+    },
+    removeItem: (key: string) => {
+      delete memoryStorage[key];
+    },
+  }));
+};
+
+// Default user for demo purposes
+const defaultUser: User = {
+  id: '1',
+  name: 'John Doe',
+  email: 'john@example.com',
+  shopCoins: 1250,
+  tier: 'Gold',
+  totalSpent: 45000,
+  orders: []
+};
+
 export const useStore = create<Store>()(
   persist(
     (set, get) => ({
@@ -69,7 +103,10 @@ export const useStore = create<Store>()(
       setSelectedCategory: (category) => set({ selectedCategory: category }),
       setSearchQuery: (query) => set({ searchQuery: query }),
       getFilteredProducts: () => {
-        const { products, selectedCategory, searchQuery } = get();
+        const state = get();
+        if (!state) return [];
+        
+        const { products, selectedCategory, searchQuery } = state;
         return products.filter((product) => {
           const matchesCategory = selectedCategory === 'all' || product.category.toLowerCase() === selectedCategory.toLowerCase();
           const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -111,24 +148,22 @@ export const useStore = create<Store>()(
       },
       clearCart: () => set({ cartItems: [] }),
       getCartTotal: () => {
-        const { cartItems } = get();
+        const state = get();
+        if (!state) return 0;
+        
+        const { cartItems } = state;
         return cartItems.reduce((total, item) => total + (item.product.price * item.quantity), 0);
       },
       getCartItemsCount: () => {
-        const { cartItems } = get();
+        const state = get();
+        if (!state) return 0;
+        
+        const { cartItems } = state;
         return cartItems.reduce((count, item) => count + item.quantity, 0);
       },
 
       // User & Authentication
-      user: {
-        id: '1',
-        name: 'John Doe',
-        email: 'john@example.com',
-        shopCoins: 1250,
-        tier: 'Gold',
-        totalSpent: 45000,
-        orders: []
-      },
+      user: defaultUser,
       isAuthenticated: true,
       login: (email, password) => {
         // Mock login
@@ -179,9 +214,10 @@ export const useStore = create<Store>()(
         }));
       },
       getCoinsToNextTier: () => {
-        const { user } = get();
-        if (!user) return 0;
+        const state = get();
+        if (!state || !state.user) return 0;
         
+        const { user } = state;
         const tierThresholds = {
           Bronze: 0,
           Silver: 1000,
@@ -206,19 +242,32 @@ export const useStore = create<Store>()(
       // Analytics
       analyticsData: [],
       addAnalyticsEvent: (type, data) => {
-        const event: AnalyticsEvent = {
-          id: Date.now().toString(),
-          type,
-          data,
-          timestamp: Date.now()
-        };
-        
-        set((state) => ({
-          analyticsData: [event, ...state.analyticsData].slice(0, 1000) // Keep last 1000 events
-        }));
+        try {
+          const event: AnalyticsEvent = {
+            id: Date.now().toString(),
+            type,
+            data,
+            timestamp: Date.now()
+          };
+          
+          set((state) => ({
+            analyticsData: [event, ...state.analyticsData].slice(0, 1000) // Keep last 1000 events
+          }));
+        } catch (error) {
+          console.warn('Failed to add analytics event:', error);
+        }
       },
       getAnalyticsStats: () => {
-        const { analyticsData } = get();
+        const state = get();
+        if (!state) return {
+          totalInteractions: 0,
+          arViews: 0,
+          vrViews: 0,
+          customizations: 0,
+          cartAdditions: 0
+        };
+        
+        const { analyticsData } = state;
         
         const arViews = analyticsData.filter(e => e.type.includes('ar')).length;
         const vrViews = analyticsData.filter(e => e.type.includes('vr')).length;
@@ -236,6 +285,7 @@ export const useStore = create<Store>()(
     }),
     {
       name: 'walmart-store',
+      storage: createSafeStorage(),
       partialize: (state) => ({
         isDarkMode: state.isDarkMode,
         cartItems: state.cartItems,
@@ -244,6 +294,93 @@ export const useStore = create<Store>()(
         rewardActivities: state.rewardActivities,
         analyticsData: state.analyticsData,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Ensure we have a valid state after rehydration
+        if (!state) {
+          console.warn('Failed to rehydrate store, using defaults');
+          return;
+        }
+        
+        // Ensure user exists
+        if (!state.user && state.isAuthenticated) {
+          state.user = defaultUser;
+        }
+        
+        // Ensure arrays exist
+        if (!state.rewardActivities) {
+          state.rewardActivities = [];
+        }
+        
+        if (!state.analyticsData) {
+          state.analyticsData = [];
+        }
+        
+        if (!state.cartItems) {
+          state.cartItems = [];
+        }
+      },
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        // Handle migration if needed
+        if (version === 0) {
+          // Migration logic for version 0 to 1
+          return {
+            ...persistedState,
+            analyticsData: persistedState.analyticsData || [],
+            rewardActivities: persistedState.rewardActivities || [],
+          };
+        }
+        return persistedState;
+      },
     }
   )
 );
+
+// Export a hook that safely handles store access
+export const useSafeStore = () => {
+  try {
+    return useStore();
+  } catch (error) {
+    console.error('Store access error:', error);
+    // Return a minimal safe state
+    return {
+      isDarkMode: false,
+      products: mockProducts,
+      selectedCategory: 'all',
+      searchQuery: '',
+      cartItems: [],
+      user: defaultUser,
+      isAuthenticated: true,
+      rewardActivities: [],
+      analyticsData: [],
+      arMode: false,
+      vrMode: false,
+      // Add safe default functions
+      toggleDarkMode: () => {},
+      setSelectedCategory: () => {},
+      setSearchQuery: () => {},
+      getFilteredProducts: () => mockProducts,
+      addToCart: () => {},
+      removeFromCart: () => {},
+      updateQuantity: () => {},
+      clearCart: () => {},
+      getCartTotal: () => 0,
+      getCartItemsCount: () => 0,
+      login: () => {},
+      logout: () => {},
+      updateShopCoins: () => {},
+      addRewardActivity: () => {},
+      getCoinsToNextTier: () => 0,
+      setARMode: () => {},
+      setVRMode: () => {},
+      addAnalyticsEvent: () => {},
+      getAnalyticsStats: () => ({
+        totalInteractions: 0,
+        arViews: 0,
+        vrViews: 0,
+        customizations: 0,
+        cartAdditions: 0
+      }),
+    };
+  }
+};
