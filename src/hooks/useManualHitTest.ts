@@ -42,7 +42,7 @@ export function useManualHitTest(onHitTest: (hitMatrix: Float32Array) => void) {
   useEffect(() => {
     if (!isPresenting || !session || !hitTestSourceRef.current) return;
 
-    const onFrame = (time: number, frame: XRFrame) => {
+    const onFrame = async (time: number, frame: XRFrame) => {
       if (!hitTestSourceRef.current) return;
 
       try {
